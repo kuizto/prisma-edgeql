@@ -59,7 +59,7 @@ async function listPosts({ query, args }) {
 }
 ```
 
-Under-the-hood **PrismaEdgeQL** will generate the following SQL and execute it using the PlanetScale serverless driver (compatible with Edge environments like CloudflareWorkers).
+Under-the-hood **PrismaEdgeQL** will generate the following SQL and execute it using the PlanetScale serverless driver (compatible with Edge environments like Cloudflare Workers).
 
 ```sql
 SELECT
