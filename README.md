@@ -20,7 +20,7 @@ Drop-in replacement to use Prisma Client on Edge environments with GraphQL and t
 
 Prisma offers the best DX for creating data models, managing migrations and querying databases. Unfortunately, a huge limitation is [Prisma Client lack of support for Edge environments](https://github.com/prisma/prisma/issues/15265) such as Cloudflare Workers.
 
-PrismaEdgeQL offers a ([very limited](#limitations)) drop-in replacement solution to use Prisma Client on Edge environments. In addition, it also converts GraphQL queries to Prisma-compatible query objects, so you don't have to manually transform incoming queries.
+PrismaEdgeQL offers a ([very limited](#limitations)) drop-in replacement solution to use a Prisma-like Client on Edge environments. In addition, it also converts GraphQL queries to Prisma-compatible query objects, so you don't have to manually transform incoming queries.
 
 ## What's the catch?
 
