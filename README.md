@@ -8,7 +8,13 @@ Please star the repo if you are interested!
 
 # PrismaEdgeQL
 
-Drop-in replacement to use Prisma Client on Edge environments with GraphQL queries and PlanetScale serverless driver.
+Drop-in replacement to use Prisma Client on Edge environments with GraphQL queries.
+
+- ✅ Prisma-like Client syntax (designed as a limited subset of Prisma Client API)
+- ✅ Works on Ege environments such as Cloudflare Workers
+- ✅ Uses PlanetScale serverless driver for JavaScript (MySQL-like syntax)
+- ✅ Automatically convert GraphQL queries to Prisma-compatible query objects
+- ✅ Write your own SQL for unsupported operations
 
 ## Why?
 
