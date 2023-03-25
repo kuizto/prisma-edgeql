@@ -1,9 +1,12 @@
+# 🚧 Under active developement
+
+A first preview version will be published in the coming weeks (no set date). Please star the repo if you are interested!
+
+---
+
 # PrismaEdgeQL
 
 Drop-in replacement to use Prisma Client on Edge environments with GraphQL queries.
-
-> **🚧 PrismaEdgeQL is under active developement. A first preview version will be published in the coming weeks (no set date). Please star the repo if you are interested!**
-
 
 ## Why?
 
@@ -254,7 +257,7 @@ async function complexQuery({ query, args }) {
 
 ### Model queries
 
-#### .findOne
+#### `findOne`
 
 Incoming GraphQL query
 
@@ -285,7 +288,7 @@ FROM Post
 WHERE uuid = ?;
 ```
 
-#### .findMany
+#### `findMany`
 
 Incoming GraphQL query
 
@@ -315,7 +318,7 @@ SELECT
 FROM Post;
 ```
 
-#### .update
+#### `update`
 
 Incoming GraphQL query
 
