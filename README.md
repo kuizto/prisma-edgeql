@@ -1,12 +1,14 @@
 # 🚧 Under active developement
 
-A first preview version will be published in the coming weeks (no set date). Please star the repo if you are interested!
+A first preview version will be published in the coming weeks (no set date).
+
+Please star the repo if you are interested!
 
 ---
 
 # PrismaEdgeQL
 
-Drop-in replacement to use Prisma Client on Edge environments with GraphQL queries.
+Drop-in replacement to use Prisma Client on Edge environments with GraphQL queries and PlanetScale serverless driver.
 
 ## Why?
 
