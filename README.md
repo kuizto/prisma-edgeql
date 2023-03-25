@@ -270,7 +270,7 @@ async function complexQuery({ query, args }) {
 Incoming GraphQL query
 
 ```graphql
-mutation {
+query {
   post (where: { uuid: $uuid }) {
     uuid
     title
@@ -301,7 +301,7 @@ WHERE uuid = ?;
 Incoming GraphQL query
 
 ```graphql
-mutation {
+query {
   posts {
     uuid
     title
