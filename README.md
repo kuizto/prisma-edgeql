@@ -64,7 +64,7 @@ Under-the-hood **PrismaEdgeQL** will generate the following SQL and execute it u
 ```sql
 SELECT
   JSON_ARRAYAGG(JSON_OBJECT(
-    "title", post.title
+    "title", title
   ))
 FROM Post;
 ```
