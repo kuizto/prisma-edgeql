@@ -1,0 +1,18 @@
+{
+  "name": "prisma-edgeql",
+  "version": "1.0.0-beta.1",
+  "description": "Edge-compatible ◭ Prisma Client.",
+  "author": "maoosi <hello@sylvainsimao.fr>",
+  "license": "BSD-2-Clause",
+  "scripts": {
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@planetscale/database": "^1.7.0",
+    "graphql": "^16.6.0",
+    "lodash": "^4.17.21",
+    "vitest": "^0.25.3",
+    "wild-wild-path": "^3.6.0",
+    "wild-wild-utils": "^4.9.0"
+  }
+}

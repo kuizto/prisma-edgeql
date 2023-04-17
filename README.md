@@ -1,6 +1,6 @@
 # 🚧 Under active developement
 
-A first preview version will be published in the coming weeks (no set date).
+A first preview version will be published soon.
 
 Please star the repo if you are interested!
 
@@ -8,55 +8,63 @@ Please star the repo if you are interested!
 
 # PrismaEdgeQL
 
-Drop-in replacement to use Prisma Client on Edge environments with GraphQL and the PlanetScale serverless driver.
+**Edge-compatible Prisma Client (with PlanetScale driver).**
 
 - ✅ Prisma-like Client syntax (designed as a limited subset of Prisma Client API)
-- ✅ Works on Ege environments such as Cloudflare Workers
-- ✅ Uses PlanetScale serverless driver for JavaScript (MySQL-like syntax)
+- ✅ Works on Edge environments such as Cloudflare Workers
+- ✅ PlanetScale serverless driver for JavaScript (MySQL-compatible)
 - ✅ Automatically convert GraphQL queries to Prisma-compatible query objects
-- ✅ You can also write your own SQL for more custom operations
+- ✅ Support writing and executing custom SQL queries
 
 ## Why?
 
-Prisma offers the best DX for creating data models, managing migrations and querying databases. Unfortunately, a huge limitation is [Prisma Client lack of support for Edge environments](https://github.com/prisma/prisma/issues/15265) such as Cloudflare Workers.
+[Prisma Client doesn't currently support Edge runtimes](https://github.com/prisma/prisma/issues/15265) such as Cloudflare Workers, making it impossible to use Prisma in modern applications. PrismaEdgeQL offers a temporary drop-in solution to use Prisma Client inside Edge environments.
 
-PrismaEdgeQL offers a ([very limited](#limitations)) drop-in replacement solution to use a Prisma-like Client on Edge environments. In addition, it also converts GraphQL queries to Prisma-compatible query objects, so you don't have to manually transform incoming queries.
+**What's the catch?** Lots of limitations! PrismaEdgeQL is designed for our own use case at [kuizto.co](https://kuizto.co) and is intended to be a **temporary solution** until Prisma officially releases support for Edge environments. As such, PrismaEdgeQL only supports a [limited subset](#limitations) of the Prisma Client API.
 
-## What's the catch?
+**Using GraphQL?** The library comes with a built-in GraphQL adapter to convert incoming GraphQL queries into Prisma-compatible query objects, so you don't have to manually transform incoming queries.
 
-Lots of limitations! PrismaEdgeQL is designed for our own use case at [kuizto.co](https://kuizto.co) and is intended to be a **temporary solution** until Prisma officially releases support for Edge environments. As such, PrismaEdgeQL only supports a basic subset of Prisma Client API.
+## Configuration
 
-## Usage
-
-Given the below incoming GraphQL query:
-
-```graphql
-query {
-  posts {
-    title
-  }
-}
-```
-
-We can use **PrismaEdgeQL** inside our GraphQL resolver function:
-
-```ts
+```typescript
 import PrismaEdgeQL, { PlanetScaleDriver } from 'prisma-edgeql'
 
 const config = {
   driver: PlanetScaleDriver,
   databaseUrl: env.DATABASE_URL,
+
+  // manually declare models you want to use
   models: {
-    post: { table: 'Post' }
+    post: { 
+        table: 'Post',
+        relations: {
+          author: {
+            from: ['Post', 'authorUuid'],
+            to: ['User', 'uuid'],
+            type: 'one' as const,
+          }
+        }
+    }
   }
 }
+```
 
-async function listPosts({ query, args }) {
-  const { prisma, gql } = new PrismaEdgeQL<typeof config>(config)
-  const { select, where } = gql(query, args)
+### Usage (as Prisma Client)
 
-  return await prisma.post.findMany({ select, where })
-}
+```ts
+const { prisma } = new PrismaEdgeQL<typeof config>(config)
+
+// find many posts using Prisma Client syntax
+const posts = await prisma.post.findMany({
+  where: { 
+    title: { contains: 'world' }
+  },
+  select: { 
+    uuid: true, 
+    title: true, 
+    author: { select: { email: true } }
+  }
+})
 ```
 
 Under-the-hood **PrismaEdgeQL** will generate the following SQL and execute it using the PlanetScale serverless driver (compatible with Edge environments like Cloudflare Workers).
@@ -64,9 +72,32 @@ Under-the-hood **PrismaEdgeQL** will generate the following SQL and execute it u
 ```sql
 SELECT
   JSON_ARRAYAGG(JSON_OBJECT(
-    "title", title
+    "uuid", uuid,
+    "title", title,
+    "author", (SELECT JSON_OBJECT(
+      "email", email
+    ) FROM User WHERE User.uuid = Post.authorUuid )
   ))
-FROM Post;
+FROM Post WHERE title LIKE "%world%";
+```
+
+### Usage (with GraphQL queries)
+
+```ts
+const { prisma, gql } = new PrismaEdgeQL<typeof config>(config)
+
+// convert GraphQL query to Prisma-compatible query objects
+const { where, select } = gql(
+  `query ($uuid: String!) {
+      post (where: { uuid: $uuid }) {
+        title
+      }
+  }`,
+  { uuid: '123' }
+)
+
+// find one post using Prisma Client syntax
+const post = await prisma.post.findOne({ where, select })
 ```
 
 ## Limitations
@@ -119,13 +150,13 @@ FROM Post;
   <tr>
     <td>Filter conditions and operators</td>
     <td>
-        x
+        <code>equals</code>, <code>contains</code>, <code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code>
     </td>
     <td>
         x
     </td>
     <td>
-        <code>equals</code>, <code>not</code>, <code>in</code>, <code>notIn</code>, <code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code>, <code>contains</code>, <code>search</code>, <code>mode</code>, <code>startsWith</code>, <code>endsWith</code>, <code>AND</code>, <code>OR</code>, <code>NOT</code>
+        <code>not</code>, <code>in</code>, <code>notIn</code>,  <code>search</code>, <code>mode</code>, <code>startsWith</code>, <code>endsWith</code>, <code>AND</code>, <code>OR</code>, <code>NOT</code>
     </td>
   </tr>
   <tr>
@@ -216,14 +247,17 @@ FROM Post;
 
 ### Need more?
 
-Feel free to open a PR and contribute to the repository! As an alternative, you can also **write your own SQL** queries using the PlanetScale serverless driver:
+Feel free to open a PR and contribute to the repository!
+
+As an alternative, you can also **write your own SQL** queries using the PlanetScale serverless driver:
 
 ```ts
-async function complexQuery({ query, args }) {
-  const { driver: pscale } = new PrismaEdgeQL(config)
-  const sql = `UPDATE Post SET title = ? WHERE id = ?;`
-  const result = await pscale.execute(sql, ['hello world', 2])
-}
+const { driver: pscale } = new PrismaEdgeQL(config)
+
+const query = `UPDATE Post SET title = ? WHERE id = ?;`
+const params = ['hello world', 2]
+
+await pscale.execute(query, params)
 ```
 
 ## Supported
@@ -267,21 +301,13 @@ async function complexQuery({ query, args }) {
 
 #### `findOne`
 
-Incoming GraphQL query
-
-```graphql
-query {
-  post (where: { uuid: $uuid }) {
-    uuid
-    title
-  }
-}
-```
-
 Usage with PrismaEdgeQL
 
 ```ts
-await prisma.post.findOne({ where, select })
+await prisma.post.findOne({
+  where: { uuid: '123' },
+  select: { uuid: true, title: true }
+})
 ```
 
 Generated SQL
@@ -293,26 +319,17 @@ SELECT
     "title", title
   )
 FROM Post
-WHERE uuid = ?;
+WHERE uuid = "123";
 ```
 
 #### `findMany`
 
-Incoming GraphQL query
-
-```graphql
-query {
-  posts {
-    uuid
-    title
-  }
-}
-```
-
 Usage with PrismaEdgeQL
 
 ```ts
-await prisma.post.findMany({ select })
+await prisma.post.findMany({
+  select: { uuid: true, title: true }
+})
 ```
 
 Generated SQL
@@ -344,13 +361,17 @@ mutation {
 Usage with PrismaEdgeQL
 
 ```ts
-await prisma.post.update({ where, data, select })
+await prisma.post.update({
+  where: { uuid: '123' },
+  data: { title: 'hello world' },
+  select: { title: true }
+})
 ```
 
 Generated SQL
 
 ```sql
-UPDATE Post SET title = ? WHERE uuid = ?;
+UPDATE Post SET title = "hello world" WHERE uuid = "123";
 
-SELECT JSON_OBJECT("title", post.title) FROM Post;
+SELECT JSON_OBJECT("title", title) FROM Post WHERE uuid = "123";
 ```
