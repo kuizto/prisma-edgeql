@@ -6,7 +6,7 @@ Please star the repo if you are interested!
 
 ---
 
-# PrismaEdgeQL
+# Prisma-EdgeQL
 
 **Edge-compatible Prisma Client (with PlanetScale driver).**
 
@@ -18,11 +18,20 @@ Please star the repo if you are interested!
 
 ## Why?
 
-[Prisma Client doesn't currently support Edge runtimes](https://github.com/prisma/prisma/issues/15265) such as Cloudflare Workers, making it impossible to use Prisma in modern applications. PrismaEdgeQL offers a temporary drop-in solution to use Prisma Client inside Edge environments.
+[Prisma Client doesn't currently support Edge runtimes](https://github.com/prisma/prisma/issues/15265) such as Cloudflare Workers, making it impossible to use Prisma in modern applications. Prisma-EdgeQL offers a temporary drop-in replacement solution to use Prisma Client inside Edge environments.
 
-**What's the catch?** Lots of limitations! PrismaEdgeQL is designed for our own use case at [kuizto.co](https://kuizto.co) and is intended to be a **temporary solution** until Prisma officially releases support for Edge environments. As such, PrismaEdgeQL only supports a [limited subset](#limitations) of the Prisma Client API.
+**What's the catch?** Lots of limitations! Prisma-EdgeQL is designed for our own use case at [kuizto.co](https://kuizto.co) and is intended to be a **temporary solution** until Prisma officially releases support for Edge environments. As such, Prisma-EdgeQL only supports a [limited subset](#limitations) of the Prisma Client API.
 
 **Using GraphQL?** The library comes with a built-in GraphQL adapter to convert incoming GraphQL queries into Prisma-compatible query objects, so you don't have to manually transform incoming queries.
+
+### Work in progress
+
+- [ ] Add `count` model queries.
+- [ ] Add `orderBy`, `skip` and `take` options.
+- [ ] Support `select` inside `create` or `upsert` queries with `@default(autoincrement())`.
+- [ ] Replace manual configuration by reading the generated Prisma Client DMMF.
+- [ ] Improve types using the generated Prisma Client types.
+- [ ] Bundle and release the first beta.
 
 ## Configuration
 
@@ -36,14 +45,14 @@ const config = {
   // manually declare models you want to use
   models: {
     post: { 
-        table: 'Post',
-        relations: {
-          author: {
-            from: ['Post', 'authorUuid'],
-            to: ['User', 'uuid'],
-            type: 'one' as const,
-          }
+      table: 'Post',
+      relations: {
+        author: {
+          from: ['Post', 'authorUuid'],
+          to: ['User', 'uuid'],
+          type: 'one' as const,
         }
+      }
     }
   }
 }
@@ -67,7 +76,7 @@ const posts = await prisma.post.findMany({
 })
 ```
 
-Under-the-hood **PrismaEdgeQL** will generate the following SQL and execute it using the PlanetScale serverless driver (compatible with Edge environments like Cloudflare Workers).
+Under-the-hood **Prisma-EdgeQL** will generate the following SQL and execute it using the PlanetScale serverless driver (compatible with Edge environments like Cloudflare Workers).
 
 ```sql
 SELECT
@@ -97,12 +106,14 @@ const { where, select } = gql(
 )
 
 // find one post using Prisma Client syntax
-const post = await prisma.post.findOne({ where, select })
+const post = await prisma.post.findUnique({ where, select })
 ```
 
 ## Limitations
 
 ### Overview
+
+<sub id="note-1-info"><a href="#note-1-link">[1]</a> Using the `select` option inside `create` or `upsert` queries only works when model `@id` is set to `@default(dbgenerated("(uuid_to_bin(uuid(),1))"))`. Support for `@default(autoincrement())`, `@default(cuid())` and `@default(uuid())` will be added soon.</sub>
 
 <table>
   <tr>
@@ -111,16 +122,16 @@ const post = await prisma.post.findOne({ where, select })
     <th style="text-align:left;" width="26%">Coming soon 🚧</th>
     <th style="text-align:left;" width="26%">Not supported ❌</th>
   </tr>
-  <tr>
+  <tr id="note-1-link">
     <td>Model queries</td>
     <td>
-        <code>findOne</code>, <code>findMany</code>, <code>update</code>
+        <code>findUnique</code>, <code>findMany</code>, <code>create<sup><a href="#note-1-info">[1]</a></sup></code>, <code>update</code>, <code>upsert<sup><a href="#note-1-info">[1]</a></sup></code>, <code>delete</code>
     </td>
     <td>
-        <code>create</code>, <code>upsert</code>, <code>delete</code>, <code>count</code>
+        <code>create<sup><a href="#note-1-info">[1]</a></sup></code>, <code>upsert<sup><a href="#note-1-info">[1]</a></sup></code>, <code>count</code>
     </td>
     <td>
-        <code>findUnique</code>, <code>findUniqueOrThrow</code>, <code>findFirst</code>, <code>findFirstOrThrow</code>, <code>createMany</code>, <code>updateMany</code>, <code>deleteMany</code>, <code>aggregate</code>, <code>groupBy</code>
+        <code>findOne</code>, <code>findUniqueOrThrow</code>, <code>findFirst</code>, <code>findFirstOrThrow</code>, <code>createMany</code>, <code>updateMany</code>, <code>deleteMany</code>, <code>aggregate</code>, <code>groupBy</code>
     </td>
   </tr>
   <tr>
@@ -129,7 +140,7 @@ const post = await prisma.post.findOne({ where, select })
         <code>where</code>, <code>data</code>, <code>select</code>,
     </td>
     <td>
-        <code>orderBy</code>
+        <code>orderBy</code>, <code>skip</code>, <code>take</code>
     </td>
     <td>
         <code>include</code>, <code>distinct</code>
@@ -301,10 +312,10 @@ await pscale.execute(query, params)
 
 #### `findOne`
 
-Usage with PrismaEdgeQL
+Usage with Prisma-EdgeQL
 
 ```ts
-await prisma.post.findOne({
+await prisma.post.findUnique({
   where: { uuid: '123' },
   select: { uuid: true, title: true }
 })
@@ -324,7 +335,7 @@ WHERE uuid = "123";
 
 #### `findMany`
 
-Usage with PrismaEdgeQL
+Usage with Prisma-EdgeQL
 
 ```ts
 await prisma.post.findMany({
@@ -358,7 +369,7 @@ mutation {
 }
 ```
 
-Usage with PrismaEdgeQL
+Usage with Prisma-EdgeQL
 
 ```ts
 await prisma.post.update({

@@ -1,6 +1,6 @@
 import { flatten } from 'wild-wild-utils'
 import { set } from 'wild-wild-path'
-import Json from './json'
+import gqlToJson from './utils/gql-to-json'
 
 export default class GraphQL {
     public select: any | null
@@ -9,39 +9,40 @@ export default class GraphQL {
 
     constructor(query: string, args?: any) {
         const queryObj = Object.values(
-            Object.values((Json(query) as object))?.[0]
+            Object.values((gqlToJson(query) as object))?.[0]
         )?.[0] || {}
 
-        this.select = this.parseSelect(queryObj)
-        this.data = this.parseData(args)
-        this.where = this.parseWhere(args)
+        this.select = parse('select', queryObj)
+        this.data = parse('data', args)
+        this.where = parse('where', args)
 
         return this
     }
+}
 
-    private parseSelect(queryObj?: any): any | null {
-        const dotObj = flatten(queryObj || {}, { shallowArrays: true })
-        const select = {}
+function parseSelect(queryObj?: any): any | null {
+    const dotObj = flatten(queryObj || {}, { shallowArrays: true })
+    const select = {}
 
-        for (const path in dotObj) {
-            if (!path.startsWith('__args'))
-                set(select, path.replace(/(edges)+\./g, '').replace(/(node)+\./g, '').replace(/\./g, '.select.'), true, { mutate: true })
-        }
-
-        return Object.keys(select).length > 0
-            ? select
-            : null
+    for (const path in dotObj) {
+        if (!path.startsWith('__args'))
+            set(
+                select,
+                path
+                    .replace(/(edges)+\./g, '')
+                    .replace(/(node)+\./g, '')
+                    .replace(/\./g, '.select.'),
+                true,
+                { mutate: true }
+            )
     }
 
-    private parseData(queryArgs?: any): any | null {
-        return queryArgs?.data && Object.keys(queryArgs.data).length > 0
-            ? queryArgs.data
-            : null
-    }
+    return Object.keys(select).length > 0 ? select : null
+}
 
-    private parseWhere(queryArgs?: any): any | null {
-        return queryArgs?.where && Object.keys(queryArgs.where).length > 0
-            ? queryArgs.where
-            : null
-    }
+export function parse(key: 'select' | 'data' | 'where', queryArgs?: any): any | null {
+    if (key === 'select')
+        return parseSelect(queryArgs)
+    else
+        return queryArgs?.[key] && Object.keys(queryArgs[key]).length > 0 ? queryArgs[key] : null
 }

@@ -1,115 +1,156 @@
-import type { PrismaEdgeQLAdaperParams, PrismaEdgeQLModelWithName, PrismaEdgeQLModels } from './index'
+import type { AdapterParams, ModelWithName, Models } from './index'
 
 export default class Prisma {
-    private config: PrismaEdgeQLAdaperParams
+    private config: AdapterParams
 
-    constructor(config: PrismaEdgeQLAdaperParams) {
+    constructor(config: AdapterParams) {
         this.config = config
-
         return this
     }
 
-    public client<Models extends PrismaEdgeQLModels | undefined>(): Client<Models> {
-        const client: Client<Models> = {} as Client<Models>
+    public client<T extends Models | undefined>(): Client<T> {
+        const client: Client<T> = {} as Client<T>
 
         for (const model in this.config.models) {
-            const modelConfig: PrismaEdgeQLModelWithName = {
+            const modelConfig: ModelWithName = {
                 ...this.config.models[model],
                 name: model,
             }
 
             client[model] = {
-                findOne: <T>(queryParams: FindOneQuery) =>
-                    this.findOne<T>(queryParams, modelConfig),
+                findUnique: <T>(queryParams: findUniqueQuery) =>
+                    this.executeQuery<T, findUniqueQuery>(
+                        'findUnique', 'one', queryParams, modelConfig
+                    ),
                 findMany: <T>(queryParams: FindManyQuery) =>
-                    this.findMany<T>(queryParams, modelConfig),
+                    this.executeQuery<T, FindManyQuery>(
+                        'findMany', 'many', queryParams, modelConfig
+                    ),
+                create: <T>(queryParams: CreateQuery) =>
+                    this.executeQuery<T, CreateQuery>(
+                        'create', 'one', queryParams, modelConfig
+                    ),
                 update: <T>(queryParams: UpdateQuery) =>
-                    this.update<T>(queryParams, modelConfig),
+                    this.executeQuery<T, UpdateQuery>(
+                        'update', 'one', queryParams, modelConfig
+                    ),
+                upsert: <T>(queryParams: UpsertQuery) =>
+                    this.executeQuery<T, UpsertQuery>(
+                        'upsert', 'one', queryParams, modelConfig
+                    ),
+                delete: <T>(queryParams: DeleteQuery) =>
+                    this.executeQuery<T, DeleteQuery>(
+                        'delete', 'one', queryParams, modelConfig
+                    ),
             }
         }
 
         return client
     }
 
-    private async findOne<T>(queryParams: FindOneQuery, model: PrismaEdgeQLModelWithName): FindOneResponse<T> {
-        let result: Awaited<FindOneResponse<T>> = null
+    private async executeQuery<T, QueryParams>(
+        driverQuery: 'findUnique' | 'findMany' | 'update' | 'upsert' | 'create' | 'delete',
+        returnType: 'one' | 'many',
+        queryParams: QueryParams,
+        model: ModelWithName,
+    ): Promise<Partial<T> | null> {
+        let querySelectedResult: any = null
 
-        const ops = this.config.driver.findOne(queryParams, model)
+        const ops = this.config.driver[driverQuery](queryParams as any, model)
+        const storage: any = {}
 
-        for (let i = 0; i < ops.length; i++) {
-            const { sql, vars } = ops[i]
-            const response = await this.config.driver.execute(sql, vars)
+        for (let queryIndex = 0; queryIndex < ops.length; queryIndex++) {
+            let { sql, vars, __execParams } = ops[queryIndex]
 
-            if (i === ops.length - 1)
-                result = this.config.driver.formatOutput<Awaited<FindOneResponse<T>>>(response, { type: 'one' })
+            const skip = typeof __execParams?.if !== 'undefined' && __execParams.if({ storage }) === false
+
+            if (!skip) {
+                let queryResult: any = null
+
+                if (__execParams?.before) {
+                    const setVar = (
+                        key: string,
+                        value: "string" | "number" | "bigint" | "boolean" | "undefined" | null
+                    ) => vars = vars.map(v => v === key ? value : v)
+
+                    __execParams.before({ storage, setVar })
+                }
+
+                const response = await this.config.driver.execute(sql, vars)
+
+                const setResult =
+                    (driverQuery === 'delete' && queryIndex === 0) ||
+                    (driverQuery !== 'delete' && queryIndex === ops.length - 1)
+
+                if (setResult || __execParams?.after) {
+                    queryResult = this.config.driver.formatOutput<Awaited<Promise<Partial<T> | null>>>(
+                        response, { type: returnType }
+                    )
+
+                    if (__execParams?.after) {
+                        __execParams.after({ storage, result: queryResult })
+                    }
+                }
+
+                querySelectedResult = queryResult
+            }
         }
 
-        return result
-    }
-
-    private async findMany<T>(queryParams: FindManyQuery, model: PrismaEdgeQLModelWithName): FindManyResponse<T> {
-        let result: Awaited<FindManyResponse<T>> = []
-
-        const ops = this.config.driver.findMany(queryParams, model)
-
-        for (let i = 0; i < ops.length; i++) {
-            const { sql, vars } = ops[i]
-            const response = await this.config.driver.execute(sql, vars)
-
-            if (i === ops.length - 1)
-                result = this.config.driver.formatOutput<Awaited<FindManyResponse<T>>>(response, { type: 'many' })
-        }
-
-        return result
-    }
-
-    private async update<T>(queryParams: UpdateQuery, model: PrismaEdgeQLModelWithName): UpdateResponse<T> {
-        let result: Awaited<UpdateResponse<T>> = null
-
-        const ops = this.config.driver.update(queryParams, model)
-
-        for (let i = 0; i < ops.length; i++) {
-            const { sql, vars } = ops[i]
-            const response = await this.config.driver.execute(sql, vars)
-
-            if (i === ops.length - 1)
-                result = this.config.driver.formatOutput<Awaited<UpdateResponse<T>>>(response, { type: 'one' })
-        }
-
-        return result
+        return querySelectedResult
     }
 }
 
-export type Client<Models extends PrismaEdgeQLModels | undefined> = Record<keyof Models, {
-    findOne: FindOne
+export type Client<T extends Models | undefined> = Record<keyof T, {
+    findUnique: findUnique
     findMany: FindMany
+    create: Create
     update: Update
+    upsert: Upsert
+    delete: Delete
 }>
 
-type FindOneResponse<T> = Promise<Partial<T> | null>
-type FindManyResponse<T> = Promise<Partial<T>[]>
-type UpdateResponse<T> = Promise<Partial<T> | null>
+type findUnique = <T>(query: findUniqueQuery) => Promise<Partial<T> | null>
+type FindMany = <T>(query: FindManyQuery) => Promise<Partial<T> | null>
+type Create = <T>(query: CreateQuery) => Promise<Partial<T> | null>
+type Update = <T>(query: UpdateQuery) => Promise<Partial<T> | null>
+type Upsert = <T>(query: UpsertQuery) => Promise<Partial<T> | null>
+type Delete = <T>(query: DeleteQuery) => Promise<Partial<T> | null>
 
-type FindOne = <T>(query: FindOneQuery) => FindOneResponse<T>
-type FindMany = <T>(query: FindManyQuery) => FindManyResponse<T>
-type Update = <T>(query: UpdateQuery) => UpdateResponse<T>
-
+export type PrismaCreate = object | null
+export type PrismaUpdate = object | null
 export type PrismaWhere = object | null
 export type PrismaSelect = object | null
 export type PrismaData = object | null
 
-export interface FindOneQuery {
+export type findUniqueQuery = {
     where: PrismaWhere
     select: PrismaSelect
 }
 
-export interface FindManyQuery {
+export type FindManyQuery = {
     where?: PrismaWhere
     select: PrismaSelect
 }
 
-export interface UpdateQuery {
+export type CreateQuery = {
     data: PrismaData
+    select: PrismaSelect
+}
+
+export type UpdateQuery = {
+    data: PrismaData
+    where: PrismaWhere
+    select: PrismaSelect
+}
+
+export type UpsertQuery = {
+    where: PrismaWhere
+    update: PrismaUpdate
+    create: PrismaCreate
+    select: PrismaSelect
+}
+
+export type DeleteQuery = {
     where: PrismaWhere
     select: PrismaSelect
 }
