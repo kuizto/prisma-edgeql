@@ -75,7 +75,7 @@ const Post = { ...config.models.post, name: 'post' }
 
 // Model queries
 
-test("findOne", async () => {
+test("findUnique", async () => {
     const queries = emulateQueries(pscale.findUnique({
         select: {
             uuid: true,
