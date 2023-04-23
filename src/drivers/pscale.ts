@@ -50,6 +50,8 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
             this.config?.logger?.(`executed in ${Math.round(executed.time)} ms`, 'info')
         } catch (e) {
             this.config?.logger?.(e, 'error')
+            this.config?.logger?.(sql, 'debug')
+            this.config?.logger?.(vars, 'debug')
         }
 
         return executed
@@ -106,8 +108,8 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
             }
             else if (['string', 'number', 'bigint', 'boolean'].includes(typeof value)) {
                 if (field === 'contains' && whereParams?.parentField) {
-                    whereStatements.push(`${whereParams.parentField} LIKE "%${equality}%"`)
-                    vars.push(value)
+                    whereStatements.push(`${whereParams.parentField} LIKE ${equality}`)
+                    vars.push(`%${value}%`)
                 }
                 else if (field === 'equals' && whereParams?.parentField) {
                     whereStatements.push(`${whereParams.parentField} = ${equality}`)

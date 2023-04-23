@@ -91,8 +91,8 @@ test("findUnique", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: `SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email, "profileImage", (SELECT JSON_OBJECT("url", url) FROM Image WHERE Image.relatedToUserProfileUuid = User.uuid)) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?) AND title LIKE "%?%";`,
-            vars: ['123', 'foo']
+            sql: `SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email, "profileImage", (SELECT JSON_OBJECT("url", url) FROM Image WHERE Image.relatedToUserProfileUuid = User.uuid)) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?) AND title LIKE ?;`,
+            vars: ['123', '%foo%']
         },
     ]);
 })
@@ -113,8 +113,8 @@ test("findMany", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: `SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid))) FROM Post WHERE title LIKE "%?%" AND User.email = ? LEFT JOIN User ON User.uuid = Post.authorUuid;`,
-            vars: ['world', 'email@gmail.com']
+            sql: `SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid))) FROM Post WHERE title LIKE ? AND User.email = ? LEFT JOIN User ON User.uuid = Post.authorUuid;`,
+            vars: ['%world%', 'email@gmail.com']
         },
     ]);
 });
