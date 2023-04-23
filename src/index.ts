@@ -68,7 +68,7 @@ export type PrismaEdgeQLParams = {
     driver: typeof PlanetScale
     databaseUrl: string
     models?: Models
-    logger?: (msg: any, logLevel: 'debug' | 'info') => void
+    logger?: (msg: any, logLevel: 'debug' | 'info' | 'error') => void
 }
 
 export type DriverParams = {

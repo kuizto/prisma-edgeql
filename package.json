@@ -11,7 +11,7 @@
     "@planetscale/database": "^1.7.0",
     "graphql": "^16.6.0",
     "lodash": "^4.17.21",
-    "vitest": "^0.25.3",
+    "vitest": "^0.25.8",
     "wild-wild-path": "^3.6.0",
     "wild-wild-utils": "^4.9.0"
   }

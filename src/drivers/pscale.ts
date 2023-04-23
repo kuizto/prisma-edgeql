@@ -31,13 +31,26 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
 
     public async execute(sql: string, vars: any[]): Promise<ExecutedQuery> {
         if (!this.conn) {
-            this.conn = connect({ url: this.config.databaseUrl })
+            this.conn = connect({
+                url: this.config.databaseUrl,
+                // https://github.com/planetscale/database-js/pull/102
+                fetch: (input: string, init?: RequestInit) => {
+                    delete (init as any)["cache"]
+                    return fetch(input, init)
+                }
+            })
             this.config?.logger?.('new connection to PlanetScale', 'info')
         }
 
-        this.config?.logger?.('Execute SQL', 'info')
-        const executed = await this.conn.execute(sql, vars)
-        this.config?.logger?.(`executed in ${Math.round(executed.time)} ms`, 'info')
+        let executed
+
+        try {
+            this.config?.logger?.('Execute SQL', 'info')
+            executed = await this.conn.execute(sql, vars)
+            this.config?.logger?.(`executed in ${Math.round(executed.time)} ms`, 'info')
+        } catch (e) {
+            this.config?.logger?.(e, 'error')
+        }
 
         return executed
     }

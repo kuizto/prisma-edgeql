@@ -131,7 +131,7 @@ const post = await prisma.post.findUnique({ where, select })
         <code>create<sup><a href="#note-1-info">[1]</a></sup></code>, <code>upsert<sup><a href="#note-1-info">[1]</a></sup></code>, <code>count</code>
     </td>
     <td>
-        <code>findUnique</code>, <code>findUniqueOrThrow</code>, <code>findFirst</code>, <code>findFirstOrThrow</code>, <code>createMany</code>, <code>updateMany</code>, <code>deleteMany</code>, <code>aggregate</code>, <code>groupBy</code>
+        <code>findOne</code>, <code>findUniqueOrThrow</code>, <code>findFirst</code>, <code>findFirstOrThrow</code>, <code>createMany</code>, <code>updateMany</code>, <code>deleteMany</code>, <code>aggregate</code>, <code>groupBy</code>
     </td>
   </tr>
   <tr>
