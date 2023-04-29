@@ -1,4 +1,4 @@
-import type { AdapterParams, ModelWithName, Models } from './index'
+import type { AdapterParams, Model } from './index'
 
 export default class Prisma {
     private config: AdapterParams
@@ -8,55 +8,35 @@ export default class Prisma {
         return this
     }
 
-    public client<T extends Models | undefined>(): Client<T> {
-        const client: Client<T> = {} as Client<T>
+    public client(): Client<string> {
+        const client: Client<string> = {}
 
-        for (const model in this.config.models) {
-            const modelConfig: ModelWithName = {
-                ...this.config.models[model],
-                name: model,
-            }
+        for (const key in this.config.models) {
+            const model: Model = this.config.models[key]
 
-            client[model] = {
-                findUnique: <T>(queryParams: findUniqueQuery) =>
-                    this.executeQuery<T, findUniqueQuery>(
-                        'findUnique', 'one', queryParams, modelConfig
-                    ),
-                findMany: <T>(queryParams: FindManyQuery) =>
-                    this.executeQuery<T, FindManyQuery>(
-                        'findMany', 'many', queryParams, modelConfig
-                    ),
-                create: <T>(queryParams: CreateQuery) =>
-                    this.executeQuery<T, CreateQuery>(
-                        'create', 'one', queryParams, modelConfig
-                    ),
-                update: <T>(queryParams: UpdateQuery) =>
-                    this.executeQuery<T, UpdateQuery>(
-                        'update', 'one', queryParams, modelConfig
-                    ),
-                upsert: <T>(queryParams: UpsertQuery) =>
-                    this.executeQuery<T, UpsertQuery>(
-                        'upsert', 'one', queryParams, modelConfig
-                    ),
-                delete: <T>(queryParams: DeleteQuery) =>
-                    this.executeQuery<T, DeleteQuery>(
-                        'delete', 'one', queryParams, modelConfig
-                    ),
+            client[key] = {
+                findUnique: (args: any) => this.executeQuery('findUnique', 'one', args, model),
+                findMany: (args: any) => this.executeQuery('findMany', 'many', args, model),
+                count: (args: any) => this.executeQuery('count', 'one', args, model),
+                create: (args: any) => this.executeQuery('create', 'one', args, model),
+                update: (args: any) => this.executeQuery('update', 'one', args, model),
+                upsert: (args: any) => this.executeQuery('upsert', 'one', args, model),
+                delete: (args: any) => this.executeQuery('delete', 'one', args, model),
             }
         }
 
         return client
     }
 
-    private async executeQuery<T, QueryParams>(
-        driverQuery: 'findUnique' | 'findMany' | 'update' | 'upsert' | 'create' | 'delete',
+    private async executeQuery<Args, Return>(
+        driverQuery: 'findUnique' | 'findMany' | 'count' | 'update' | 'upsert' | 'create' | 'delete',
         returnType: 'one' | 'many',
-        queryParams: QueryParams,
-        model: ModelWithName,
-    ): Promise<Partial<T> | null> {
+        args: Args,
+        model: Model,
+    ): Promise<Return> {
         let querySelectedResult: any = null
 
-        const ops = this.config.driver[driverQuery](queryParams as any, model)
+        const ops = this.config.driver[driverQuery](args as any, model)
         const storage: any = {}
 
         for (let queryIndex = 0; queryIndex < ops.length; queryIndex++) {
@@ -83,8 +63,8 @@ export default class Prisma {
                     (driverQuery !== 'delete' && queryIndex === ops.length - 1)
 
                 if (setResult || __execParams?.after) {
-                    queryResult = this.config.driver.formatOutput<Awaited<Promise<Partial<T> | null>>>(
-                        response, { type: returnType }
+                    queryResult = this.config.driver.formatOutput<Return>(
+                        response, { type: returnType, model }
                     )
 
                     if (__execParams?.after) {
@@ -100,21 +80,22 @@ export default class Prisma {
     }
 }
 
-export type Client<T extends Models | undefined> = Record<keyof T, {
-    findUnique: findUnique
-    findMany: FindMany
-    create: Create
-    update: Update
-    upsert: Upsert
-    delete: Delete
+export type Client<Model extends string> = Record<Lowercase<Model>, {
+    findUnique: <Payload = any | null, Args = FindUniqueQuery>(args: FindUniqueQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
+        => Promise<Payload>
+    findMany: <Payload = any, Args = FindManyQuery>(args?: FindManyQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
+        => Promise<Payload[]>
+    count: <Payload = number, Args = CountQuery>(args?: CountQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
+        => Promise<Payload>
+    create: <Payload = any | null, Args = CreateQuery>(args: CreateQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
+        => Promise<Payload>
+    update: <Payload = any | null, Args = UpdateQuery>(args: UpdateQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
+        => Promise<Payload>
+    upsert: <Payload = any | null, Args = UpsertQuery>(args: UpsertQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
+        => Promise<Payload>
+    delete: <Payload = any | null, Args = DeleteQuery>(args: DeleteQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
+        => Promise<Payload>
 }>
-
-type findUnique = <T>(query: findUniqueQuery) => Promise<Partial<T> | null>
-type FindMany = <T>(query: FindManyQuery) => Promise<Partial<T> | null>
-type Create = <T>(query: CreateQuery) => Promise<Partial<T> | null>
-type Update = <T>(query: UpdateQuery) => Promise<Partial<T> | null>
-type Upsert = <T>(query: UpsertQuery) => Promise<Partial<T> | null>
-type Delete = <T>(query: DeleteQuery) => Promise<Partial<T> | null>
 
 export type PrismaCreate = object | null
 export type PrismaUpdate = object | null
@@ -122,35 +103,40 @@ export type PrismaWhere = object | null
 export type PrismaSelect = object | null
 export type PrismaData = object | null
 
-export type findUniqueQuery = {
+export type FindUniqueQuery = {
     where: PrismaWhere
-    select: PrismaSelect
+    select?: PrismaSelect
 }
 
 export type FindManyQuery = {
     where?: PrismaWhere
-    select: PrismaSelect
-}
+    select?: PrismaSelect
+} | undefined
+
+export type CountQuery = {
+    where?: PrismaWhere
+    select?: PrismaSelect
+} | undefined
 
 export type CreateQuery = {
     data: PrismaData
-    select: PrismaSelect
+    select?: PrismaSelect
 }
 
 export type UpdateQuery = {
     data: PrismaData
     where: PrismaWhere
-    select: PrismaSelect
+    select?: PrismaSelect
 }
 
 export type UpsertQuery = {
     where: PrismaWhere
     update: PrismaUpdate
     create: PrismaCreate
-    select: PrismaSelect
+    select?: PrismaSelect
 }
 
 export type DeleteQuery = {
     where: PrismaWhere
-    select: PrismaSelect
+    select?: PrismaSelect
 }

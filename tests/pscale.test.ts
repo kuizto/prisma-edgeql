@@ -1,13 +1,17 @@
 import { expect, test } from "vitest";
-import PrismaEdgeQL, { Operations, PlanetScale, type PrismaEdgeQLParams } from "../src/index";
+import PrismaEdgeQL, { Operations, PlanetScale, makeModels, type PrismaEdgeQLParams } from "../src/index";
 
 const config = {
     driver: PlanetScale,
     databaseUrl: String(),
-    models: {
-        user: {
-            table: 'User',
-            primaryKey: { column: 'uuid', default: '(uuid_to_bin(uuid(),1))' },
+    prismaModels: {
+        User: {
+            fields: {
+                uuid: {
+                    default: 'dbgenerated("(uuid_to_bin(uuid(),1))")',
+                    id: true,
+                }
+            },
             relations: {
                 profileImage: {
                     from: ['User', 'uuid'],
@@ -15,14 +19,14 @@ const config = {
                     type: 'one' as const,
                 },
             },
-            transform: {
-                read: { uuid: (data: string) => `BIN_TO_UUID(${data})` },
-                write: { uuid: (data: string) => `UUID_TO_BIN(${data})` }
-            }
         },
-        post: {
-            table: 'Post',
-            primaryKey: { column: 'uuid', default: '(uuid_to_bin(uuid(),1))' },
+        Post: {
+            fields: {
+                uuid: {
+                    default: 'dbgenerated("(uuid_to_bin(uuid(),1))")',
+                    id: true,
+                }
+            },
             relations: {
                 images: {
                     from: ['Post', 'uuid'],
@@ -35,10 +39,6 @@ const config = {
                     type: 'one' as const,
                 }
             },
-            transform: {
-                read: { uuid: (data: string) => `BIN_TO_UUID(${data})` },
-                write: { uuid: (data: string) => `UUID_TO_BIN(${data})` }
-            }
         }
     },
     logger: () => { }
@@ -70,8 +70,9 @@ const emulateQueries = (ops: Operations, textExecParams?: { storage: any; result
         }))
 }
 
-const { driver: pscale } = new PrismaEdgeQL<typeof config>(config)
-const Post = { ...config.models.post, name: 'post' }
+const { driver: pscale } = new PrismaEdgeQL(config)
+const Models = makeModels(config.prismaModels)
+const Post = Models?.post || {}
 
 // Model queries
 
@@ -91,7 +92,7 @@ test("findUnique", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: `SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email, "profileImage", (SELECT JSON_OBJECT("url", url) FROM Image WHERE Image.relatedToUserProfileUuid = User.uuid)) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?) AND title LIKE ?;`,
+            sql: `SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email, "profileImage", (SELECT JSON_OBJECT("url", url) FROM Image WHERE Image.relatedToUserProfileUuid = User.uuid)) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1) AND title LIKE ?;`,
             vars: ['123', '%foo%']
         },
     ]);
@@ -113,7 +114,7 @@ test("findMany", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: `SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid))) FROM Post WHERE title LIKE ? AND User.email = ? LEFT JOIN User ON User.uuid = Post.authorUuid;`,
+            sql: `SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid))) FROM Post WHERE title LIKE ? AND User.email = ? LEFT JOIN User ON User.uuid = Post.authorUuid;`,
             vars: ['%world%', 'email@gmail.com']
         },
     ]);
@@ -138,11 +139,11 @@ test("create (last_insert_id = uuid_to_bin(uuid(),1))", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid_to_bin(uuid(),1)));',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(UUID_TO_BIN(uuid(), 1), 1));',
             vars: [],
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "email", email) FROM User WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "email", email) FROM User WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: ['234'],
         },
         {
@@ -150,7 +151,7 @@ test("create (last_insert_id = uuid_to_bin(uuid(),1))", async () => {
             vars: ['hello world', '234'],
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: [insertId],
         }
     ]);
@@ -174,11 +175,11 @@ test("update", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: 'UPDATE Post SET title = ? WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'UPDATE Post SET title = ? WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: ['hello world', '123']
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: ['123']
         }
     ]);
@@ -213,11 +214,11 @@ test("upsert (update existing)", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: 'UPDATE Post SET title = ? WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'UPDATE Post SET title = ? WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: ['hello world', '123'],
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: ['123'],
         }
     ]);
@@ -256,12 +257,12 @@ test("upsert (create new)", async () => {
     expect(queries).toStrictEqual([
         // update
         {
-            sql: 'UPDATE Post SET title = ? WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'UPDATE Post SET title = ? WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: ['hello world', '123'],
         },
         // insert
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid_to_bin(uuid(),1)));',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(UUID_TO_BIN(uuid(), 1), 1));',
             vars: [],
         },
         {
@@ -270,7 +271,7 @@ test("upsert (create new)", async () => {
         },
         // select
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: [insertId],
         }
     ]);
@@ -288,31 +289,23 @@ test("delete", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: 'SELECT JSON_OBJECT("title", title) FROM Post WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'SELECT JSON_OBJECT("title", title) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: ['123']
         },
         {
-            sql: 'DELETE FROM Post WHERE uuid = UUID_TO_BIN(?);',
+            sql: 'DELETE FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
             vars: ['123']
         },
     ]);
 })
 
-// test("count", async () => {
-//     const queries = emulateQueries(pscale.count({
-//         where: {
-//             uuid: '123',
-//         }
-//     }, Post))
+test("count", async () => {
+    const queries = emulateQueries(pscale.count(undefined, Post))
 
-//     expect(queries).toStrictEqual([
-//         {
-//             sql: 'SELECT JSON_OBJECT("title", title) FROM Post WHERE uuid = UUID_TO_BIN(?);',
-//             vars: ['123']
-//         },
-//         {
-//             sql: 'DELETE FROM Post WHERE uuid = UUID_TO_BIN(?);',
-//             vars: ['123']
-//         },
-//     ]);
-// })
+    expect(queries).toStrictEqual([
+        {
+            sql: 'SELECT COUNT(*) FROM Post;',
+            vars: []
+        },
+    ]);
+})

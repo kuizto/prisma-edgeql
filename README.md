@@ -26,11 +26,8 @@ Please star the repo if you are interested!
 
 ### Work in progress
 
-- [ ] Add `count` model queries.
 - [ ] Add `orderBy`, `skip` and `take` options.
 - [ ] Support `select` inside `create` or `upsert` queries with `@default(autoincrement())`.
-- [ ] Replace manual configuration by reading the generated Prisma Client DMMF.
-- [ ] Improve types using the generated Prisma Client types.
 - [ ] Bundle and release the first beta.
 
 ## Configuration
@@ -42,10 +39,17 @@ const config = {
   driver: PlanetScaleDriver,
   databaseUrl: env.DATABASE_URL,
 
-  // manually declare models you want to use
-  models: {
-    post: { 
-      table: 'Post',
+  // manually declare models to use
+  prismaModels: {
+    Post: {
+      // only @id field is required
+      fields: {
+        uuid: {
+          default: 'dbgenerated("(uuid_to_bin(uuid(),1))")',
+          id: true,
+        }
+      },
+      // refers to @relation
       relations: {
         author: {
           from: ['Post', 'authorUuid'],
@@ -61,7 +65,7 @@ const config = {
 ### Usage (as Prisma Client)
 
 ```ts
-const { prisma } = new PrismaEdgeQL<typeof config>(config)
+const { prisma } = new PrismaEdgeQL(config)
 
 // find many posts using Prisma Client syntax
 const posts = await prisma.post.findMany({
@@ -125,10 +129,10 @@ const post = await prisma.post.findUnique({ where, select })
   <tr id="note-1-link">
     <td>Model queries</td>
     <td>
-        <code>findUnique</code>, <code>findMany</code>, <code>create<sup><a href="#note-1-info">[1]</a></sup></code>, <code>update</code>, <code>upsert<sup><a href="#note-1-info">[1]</a></sup></code>, <code>delete</code>
+        <code>findUnique</code>, <code>findMany</code>, <code>count</code>, <code>create<sup><a href="#note-1-info">[1]</a></sup></code>, <code>update</code>, <code>upsert<sup><a href="#note-1-info">[1]</a></sup></code>, <code>delete</code>
     </td>
     <td>
-        <code>create<sup><a href="#note-1-info">[1]</a></sup></code>, <code>upsert<sup><a href="#note-1-info">[1]</a></sup></code>, <code>count</code>
+        <code>create<sup><a href="#note-1-info">[1]</a></sup></code>, <code>upsert<sup><a href="#note-1-info">[1]</a></sup></code>
     </td>
     <td>
         <code>findOne</code>, <code>findUniqueOrThrow</code>, <code>findFirst</code>, <code>findFirstOrThrow</code>, <code>createMany</code>, <code>updateMany</code>, <code>deleteMany</code>, <code>aggregate</code>, <code>groupBy</code>
@@ -255,6 +259,22 @@ const post = await prisma.post.findUnique({ where, select })
     </td>
   </tr>
 </table>
+
+### How to improve Type safety?
+
+```typescript
+import type { Prisma } from '@prisma/client'
+
+namespace PostFindMany {
+    export type args = Prisma.PostFindManyArgs
+    export type payload = Partial<Prisma.PostGetPayload<args>>
+}
+
+const { prisma } = new PrismaEdgeQL(config)
+
+// improve type safety using PostFindMany
+const posts = await prisma.post.findMany<PostFindMany.payload, PostFindMany.args>()
+```
 
 ### Need more?
 
