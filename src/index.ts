@@ -55,21 +55,44 @@ export function makeModels(prismaModels: PrismaEdgeQLParams['prismaModels']) {
                 for (let fieldIdx = 0; fieldIdx < Object.keys(model.fields).length; fieldIdx++) {
                     const column = Object.keys(model.fields)[fieldIdx]
                     const defaultValue = model.fields[column]?.default || ''
+                    const type = model.fields[column]?.type || ''
                     const isIdField = model.fields[column]?.id
-                    const uuidToBinary16 = /uuid_to_bin\(uuid\(\)(?:,\s*([10]))*\)/gi.exec(defaultValue) || {};
+                    const uuidToBinary16 = /uuid_to_bin\(uuid\(\)(?:,\s*([10]))*\)/gi.exec(defaultValue)
+                    const autoIncrement = /autoincrement\(\)/gi.exec(defaultValue)
 
-                    if (uuidToBinary16) {
-                        const type = 'Binary(16)'
-                        const swapFlag = uuidToBinary16?.[1] || '0'
-                        const sqlIn = (d) => `UUID_TO_BIN(${d}, ${swapFlag})`
-                        const sqlOut = (d) => `BIN_TO_UUID(${d}, ${swapFlag})`
-                        selectAll.push(`${sqlOut(column)} as ${column}`)
-
+                    if (autoIncrement) {
+                        const sqlIn = (d) => d
+                        const sqlOut = (d) => d
                         columns[column] = {
-                            type,
+                            autoIncrement: true,
+                            type: 'Integer',
                             sqlIn,
                             sqlOut,
                         }
+                        selectAll.push(`${sqlOut(column)} as ${column}`)
+                    }
+
+                    else if (uuidToBinary16 || type === '@db.Binary(16)') {
+                        const swapFlag = uuidToBinary16?.[1] || '0'
+                        const sqlIn = (d) => `UUID_TO_BIN(${d}, ${swapFlag})`
+                        const sqlOut = (d) => `BIN_TO_UUID(${d}, ${swapFlag})`
+                        columns[column] = {
+                            type: 'Binary(16)',
+                            sqlIn,
+                            sqlOut,
+                        }
+                        selectAll.push(`${sqlOut(column)} as ${column}`)
+                    }
+
+                    else if (type === 'DateTime') {
+                        const sqlIn = (d) => d
+                        const sqlOut = (d) => `DATE_FORMAT(${d}, '%Y-%m-%dT%TZ')`
+                        columns[column] = {
+                            type: 'DateTime(3)',
+                            sqlIn,
+                            sqlOut,
+                        }
+                        selectAll.push(`${sqlOut(column)} as ${column}`)
                     }
 
                     if (isIdField) {
@@ -101,7 +124,8 @@ export type Driver = InstanceType<PrismaEdgeQLParams['driver']>
 export type ExecParams = {
     if?: ({ storage }) => any;
     before?: ({ storage, setVar }) => any;
-    after?: ({ storage, result }) => any
+    after?: ({ storage, result }) => any;
+    silentErrors?: ({ storage }) => boolean;
 }
 
 export type Operations = {
@@ -118,6 +142,7 @@ export type ModelRelationParams = {
 
 export type ModelFieldParams = {
     default?: string,
+    type?: string,
     id?: boolean
 }
 
@@ -138,7 +163,8 @@ export type Model = {
     primaryKey: string,
     columns: {
         [column: string]: {
-            type: string,
+            autoIncrement?: boolean,
+            type: 'Binary(16)' | 'DateTime(3)' | 'Integer',
             sqlIn: (data: any) => any,
             sqlOut: (data: any) => any,
         }

@@ -56,7 +56,8 @@ export default class Prisma {
                     __execParams.before({ storage, setVar })
                 }
 
-                const response = await this.config.driver.execute(sql, vars)
+                const silentErrors = typeof __execParams?.silentErrors !== 'undefined' && __execParams.silentErrors({ storage }) === true
+                const response = await this.config.driver.execute(sql, vars, { silentErrors })
 
                 const setResult =
                     (driverQuery === 'delete' && queryIndex === 0) ||
@@ -106,16 +107,22 @@ export type PrismaData = object | null
 export type FindUniqueQuery = {
     where: PrismaWhere
     select?: PrismaSelect
+    skip?: number
+    take?: number
 }
 
 export type FindManyQuery = {
     where?: PrismaWhere
     select?: PrismaSelect
+    skip?: number
+    take?: number
 } | undefined
 
 export type CountQuery = {
     where?: PrismaWhere
     select?: PrismaSelect
+    skip?: number
+    take?: number
 } | undefined
 
 export type CreateQuery = {

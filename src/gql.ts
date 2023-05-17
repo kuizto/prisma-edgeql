@@ -8,13 +8,14 @@ export default class GraphQL {
     public data: any | null
 
     constructor(query: string, args?: any) {
+        this.data = parse('data', args)
+        this.where = parse('where', args)
+
         const queryObj = Object.values(
-            Object.values((gqlToJson(query) as object))?.[0]
+            Object.values((gqlToJson(query, { variables: this?.where || {} }) as object))?.[0]
         )?.[0] || {}
 
         this.select = parse('select', queryObj)
-        this.data = parse('data', args)
-        this.where = parse('where', args)
 
         return this
     }

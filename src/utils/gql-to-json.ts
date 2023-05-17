@@ -201,7 +201,7 @@ export default function useParseGraphQLToJson(
     query: string,
     options: {
         variables: variablesObject
-        operationName: string
+        operationName?: string
     } = {
             variables: {},
             operationName: String(),

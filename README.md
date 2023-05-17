@@ -26,7 +26,7 @@ Please star the repo if you are interested!
 
 ### Work in progress
 
-- [ ] Add `orderBy`, `skip` and `take` options.
+- [ ] Add `orderBy` option.
 - [ ] Support `select` inside `create` or `upsert` queries with `@default(autoincrement())`.
 - [ ] Bundle and release the first beta.
 
@@ -141,10 +141,10 @@ const post = await prisma.post.findUnique({ where, select })
   <tr>
     <td>Model query options</td>
     <td>
-        <code>where</code>, <code>data</code>, <code>select</code>,
+        <code>where</code>, <code>data</code>, <code>select</code>, <code>skip</code>, <code>take</code>
     </td>
     <td>
-        <code>orderBy</code>, <code>skip</code>, <code>take</code>
+        <code>orderBy</code>
     </td>
     <td>
         <code>include</code>, <code>distinct</code>
@@ -330,7 +330,7 @@ await pscale.execute(query, params)
 
 ### Model queries
 
-#### `findUnique`
+### `findUnique`
 
 Usage with Prisma-EdgeQL
 
@@ -344,16 +344,18 @@ await prisma.post.findUnique({
 Generated SQL
 
 ```sql
-SELECT
-  JSON_OBJECT(
-    "uuid", uuid,
-    "title", title
-  )
-FROM Post
-WHERE uuid = "123";
+SELECT JSON_OBJECT("uuid", uuid, "title", title) 
+FROM Post 
+WHERE `uuid` = ?;
 ```
 
-#### `findMany`
+Injected vars
+
+```json
+["123"]
+```
+
+### `findMany`
 
 Usage with Prisma-EdgeQL
 
@@ -366,28 +368,54 @@ await prisma.post.findMany({
 Generated SQL
 
 ```sql
-SELECT
-  JSON_ARRAYAGG(JSON_OBJECT(
-    "uuid", uuid,
-    "title", title
-  ))
+SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", uuid, "title", title)) 
 FROM Post;
 ```
 
-#### `update`
+### `count`
 
-Incoming GraphQL query
+Usage with Prisma-EdgeQL
 
-```graphql
-mutation {
-  updatePost (
-    where: { uuid: $uuid }
-    data: { title: $title }
-  ) {
-    title
-  }
-}
+```ts
+await prisma.post.count()
 ```
+
+Generated SQL
+
+```sql
+SELECT COUNT(*) 
+FROM Post;
+```
+
+### `create`
+
+Usage with Prisma-EdgeQL
+
+```ts
+await prisma.post.create({
+  data: { title: 'hello world' }
+})
+```
+
+Generated SQL
+
+```sql
+SELECT JSON_OBJECT("uuid", LAST_INSERT_ID());
+
+INSERT INTO Post(`title`) VALUES(?);
+
+SELECT *, uuid as uuid 
+FROM Post 
+WHERE `uuid` = ?;
+```
+
+Injected vars
+
+```json
+["hello world",":uuid"]
+```
+
+### `update`
 
 Usage with Prisma-EdgeQL
 
@@ -402,7 +430,80 @@ await prisma.post.update({
 Generated SQL
 
 ```sql
-UPDATE Post SET title = "hello world" WHERE uuid = "123";
+UPDATE Post 
+SET `title` = ? 
+WHERE `uuid` = ?;
 
-SELECT JSON_OBJECT("title", title) FROM Post WHERE uuid = "123";
+SELECT JSON_OBJECT("title", title) 
+FROM Post 
+WHERE `uuid` = ?;
+```
+
+Injected vars
+
+```json
+["hello world","123","123"]
+```
+
+### `upsert`
+
+Usage with Prisma-EdgeQL
+
+```ts
+await prisma.post.upsert({
+  where: { uuid: '123' },
+  create: { title: 'hello world' },
+  update: { title: 'hello world' },
+  select: { title: true }
+})
+```
+
+Generated SQL
+
+```sql
+UPDATE Post 
+SET `title` = ? 
+WHERE `uuid` = ?;
+
+SELECT JSON_OBJECT("uuid", LAST_INSERT_ID());
+
+INSERT INTO Post(`title`) VALUES(?);
+
+SELECT JSON_OBJECT("title", title) 
+FROM Post 
+WHERE `uuid` = ?;
+```
+
+Injected vars
+
+```json
+["hello world","123","hello world",":uuid"]
+```
+
+### `delete`
+
+Usage with Prisma-EdgeQL
+
+```ts
+await prisma.post.delete({
+  where: { uuid: '123' }
+})
+```
+
+Generated SQL
+
+```sql
+SELECT *, uuid as uuid 
+FROM Post 
+WHERE `uuid` = ?;
+
+DELETE 
+FROM Post 
+WHERE `uuid` = ?;
+```
+
+Injected vars
+
+```json
+["123","123"]
 ```

@@ -29,7 +29,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
         return this
     }
 
-    public async execute(sql: string, vars?: object | any[] | null): Promise<ExecutedQuery> {
+    public async execute(sql: string, vars?: object | any[] | null, opts?: { silentErrors?: boolean }): Promise<ExecutedQuery> {
         if (!this.conn) {
             this.conn = connect({
                 url: this.config.databaseUrl,
@@ -49,20 +49,33 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
             executed = await this.conn.execute(sql, vars)
             this.config?.logger?.(`executed in ${Math.round(executed.time)} ms`, 'info')
         } catch (e) {
-            this.config?.logger?.(e, 'error')
-            this.config?.logger?.(sql, 'debug')
-            this.config?.logger?.(vars, 'debug')
+            if (!opts?.silentErrors) {
+                this.config?.logger?.(e, 'error')
+                this.config?.logger?.(sql, 'debug')
+                this.config?.logger?.(vars, 'debug')
+            }
         }
 
         return executed
     }
 
     public formatOutput<T>(data: ExecutedQuery, opts?: { type?: 'one' | 'many', model?: Model }): T {
-        const first = data.rows?.[0]
-        const isResultJSON = typeof first?.[Object.keys(first)?.[0]] === 'object'
-        const output = isResultJSON ? first[Object.keys(first)[0]] : first
+        const first = data?.rows?.[0]
+        const isJSON = data?.rows?.length === 1 && typeof first?.[Object.keys(first)?.[0]] === 'object'
+
+        const output = isJSON
+            ? first[Object.keys(first)[0]] : opts?.type === 'one'
+                ? first : data?.rows
 
         return opts?.type === 'one' ? (output || null) as T : (output || []) as T
+    }
+
+    private escape(statement: string) {
+        if (statement.includes('.')) {
+            return statement
+        } else {
+            return `\`${statement}\``
+        }
     }
 
     private sqlWhere(
@@ -82,7 +95,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
             const modelConfig = this.config?.models?.[model.name]
             const equality = modelConfig?.columns?.[field]?.sqlIn('?') || '?'
 
-            if (typeof value === 'object') {
+            if (typeof value === 'object' && !(value instanceof Date)) {
                 if (!whereParams?.parentField ||
                     (whereParams?.parentField && modelConfig?.relations?.[whereParams.parentField])
                 ) {
@@ -105,38 +118,38 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
                     joins = [...joins, ...child.joins]
                 }
             }
-            else if (['string', 'number', 'bigint', 'boolean'].includes(typeof value)) {
+            else if (value instanceof Date || ['string', 'number', 'bigint', 'boolean'].includes(typeof value)) {
                 if (field === 'contains' && whereParams?.parentField) {
-                    whereStatements.push(`${whereParams.parentField} LIKE ${equality}`)
+                    whereStatements.push(`${this.escape(whereParams.parentField)} LIKE ${equality}`)
                     vars.push(`%${value}%`)
                 }
                 else if (field === 'equals' && whereParams?.parentField) {
-                    whereStatements.push(`${whereParams.parentField} = ${equality}`)
+                    whereStatements.push(`${this.escape(whereParams.parentField)} = ${equality}`)
                     vars.push(value)
                 }
                 else if (field === 'lt' && whereParams?.parentField) {
-                    whereStatements.push(`${whereParams.parentField} < ${equality}`)
+                    whereStatements.push(`${this.escape(whereParams.parentField)} < ${equality}`)
                     vars.push(value)
                 }
                 else if (field === 'lte' && whereParams?.parentField) {
-                    whereStatements.push(`${whereParams.parentField} <= ${equality}`)
+                    whereStatements.push(`${this.escape(whereParams.parentField)} <= ${equality}`)
                     vars.push(value)
                 }
                 else if (field === 'gt' && whereParams?.parentField) {
-                    whereStatements.push(`${whereParams.parentField} > ${equality}`)
+                    whereStatements.push(`${this.escape(whereParams.parentField)} > ${equality}`)
                     vars.push(value)
                 }
                 else if (field === 'gte' && whereParams?.parentField) {
-                    whereStatements.push(`${whereParams.parentField} >= ${equality}`)
+                    whereStatements.push(`${this.escape(whereParams.parentField)} >= ${equality}`)
                     vars.push(value)
                 }
                 else {
-                    whereStatements.push(`${field} = ${equality}`)
+                    whereStatements.push(`${this.escape(field)} = ${equality}`)
                     vars.push(prismaWhere[field])
                 }
             }
             else if (typeof value === 'function') {
-                whereStatements.push(`${field} = ${equality}`)
+                whereStatements.push(`${this.escape(field)} = ${equality}`)
                 vars.push(value)
             }
         }
@@ -291,7 +304,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
                 joins = [...joins, ...where.joins]
             }
 
-            return { exec }
+            return { limit, exec }
         }
 
         function from(table: string) {
@@ -299,6 +312,16 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
             statement = [...statement, `FROM\n  ${table}`]
 
             return { where, exec }
+        }
+
+        function limit(offset: number, rowCount?: number) {
+            const useRowCount = typeof rowCount !== 'undefined'
+
+            if (offset > 0 || useRowCount) {
+                statement = [...statement, `LIMIT\n  ${offset}, ${rowCount}`]
+            }
+
+            return { exec }
         }
 
         function deleteFrom(table: string) {
@@ -330,7 +353,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
                 const sqlSet: string[] = []
                 for (const field in prismaData) {
                     const transformedField = _this.config.models[model?.name || '__undefined']?.columns?.[field]?.sqlIn('?') || '?'
-                    sqlSet.push(`  ${field} = ${transformedField}`)
+                    sqlSet.push(`  ${_this.escape(field)} = ${transformedField}`)
                     vars.push(prismaData[field])
                 }
                 statement = [...statement, `SET\n${sqlSet.join(',\n')}`]
@@ -349,7 +372,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
             if (columns.length > 0) {
                 statement = [
                     ...statement,
-                    `INSERT INTO \n ${table}(${columns.join(', ')})`
+                    `INSERT INTO \n ${table}(${columns.map(c => `${_this.escape(c)}`).join(', ')})`
                 ]
             }
 
@@ -360,7 +383,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
             if (prismaData && model) {
                 const sqlValues: string[] = []
                 for (const field in prismaData) {
-                    if (typeof prismaData[field] !== 'object') {
+                    if (prismaData[field] instanceof Date || typeof prismaData[field] !== 'object') {
                         const transformedField = _this.config.models[model?.name || '__undefined']?.columns?.[field]?.sqlIn('?') || '?'
                         sqlValues.push(transformedField)
                         vars.push(prismaData[field])
@@ -386,6 +409,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
                 .select(queryParams?.select || '*', 'one')
                 .from(model.table)
                 .where(queryParams?.where || null)
+                .limit(queryParams?.skip || 0, queryParams?.take)
                 .exec(),
         ]
 
@@ -400,6 +424,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
                 .select(queryParams?.select || '*', 'many')
                 .from(model.table)
                 .where(queryParams?.where || null)
+                .limit(queryParams?.skip || 0, queryParams?.take)
                 .exec(),
         ]
 
@@ -414,6 +439,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
                 .select('COUNT(*)', 'one')
                 .from(model.table)
                 .where(queryParams?.where || null)
+                .limit(queryParams?.skip || 0, queryParams?.take)
                 .exec(),
         ]
 
@@ -426,7 +452,7 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
         const beforeInsert: Operations = []
         const primaryKeyField = model?.primaryKey
 
-        let selectLastInsertIdWhere: any = { id: 'LAST_INSERT_ID()' };
+        let selectLastInsertIdWhere: any = {};
         let selectLastSetVars: string[][] = [];
 
         if (model?.columns?.[primaryKeyField]?.type === 'Binary(16)') {
@@ -435,6 +461,17 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
             beforeInsert.push({
                 ...this.queryBuilder(model)
                     .select({ [primaryKeyField]: sqlSelect }, 'one')
+                    .exec(),
+                __execParams: {
+                    after: ({ storage, result }) => storage['insertId'] = result?.[primaryKeyField]
+                }
+            })
+            selectLastInsertIdWhere = { [primaryKeyField]: `:${primaryKeyField}` }
+            selectLastSetVars.push([`:${primaryKeyField}`, 'insertId'])
+        } else {
+            beforeInsert.push({
+                ...this.queryBuilder(model)
+                    .select({ [primaryKeyField]: 'LAST_INSERT_ID()' }, 'one')
                     .exec(),
                 __execParams: {
                     after: ({ storage, result }) => storage['insertId'] = result?.[primaryKeyField]
@@ -535,7 +572,8 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
                 .where(queryParams.where)
                 .exec(),
             __execParams: {
-                after: ({ storage, result }) => storage['update'] = result
+                after: ({ storage, result }) => storage['update'] = result,
+                silentErrors: () => true
             }
         }
 
@@ -544,17 +582,14 @@ export default class PlanetScale implements PrismaEdgeDriverClass<ExecutedQuery>
             select: queryParams.select,
         }, model, false)
 
-        let index = 0
-
         for (const key in createQueries) {
             const query = createQueries?.[key]
 
             if (query) {
                 if (!query?.__execParams) query['__execParams'] = {}
                 query['__execParams']['if'] = ({ storage }) => !Boolean(storage?.['update'])
+                query['__execParams']['silentErrors'] = ({ storage }) => !Boolean(storage?.['update'])
             }
-
-            index++
         }
 
         const selectUpdatedQuery = {

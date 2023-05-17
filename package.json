@@ -1,16 +1,31 @@
 {
   "name": "prisma-edgeql",
   "version": "1.0.0-beta.1",
-  "description": "Edge-compatible ◭ Prisma Client.",
-  "author": "maoosi <hello@sylvainsimao.fr>",
+  "description": "Edge-compatible Prisma Client (with PlanetScale driver).",
   "license": "BSD-2-Clause",
+  "author": "maoosi <hello@sylvainsimao.fr>",
+  "repository": "git@github.com:kuizto/prisma-edgeql.git",
+  "keywords": [
+    "edge",
+    "cloudflare",
+    "planetscale",
+    "workers",
+    "graphql",
+    "prisma"
+  ],
+  "main": "dist/index.js",
   "scripts": {
-    "test": "vitest"
+    "test": "vitest --reporter verbose --outputTruncateLength 9999",
+    "build": "esbuild src/index.ts --bundle '--define:process.env.NODE_ENV=\"production\"' --format=cjs --minify --keep-names --platform=node --target=node16 --external:fsevents --outfile=dist/index.js --legal-comments=inline && tsc src/*.ts --outDir dist/ --declaration --emitDeclarationOnly --esModuleInterop --downlevelIteration --lib \"es2018,dom\""
   },
   "devDependencies": {
     "@planetscale/database": "^1.7.0",
+    "@types/prettier": "^2.7.2",
+    "esbuild": "^0.17.19",
     "graphql": "^16.6.0",
     "lodash": "^4.17.21",
+    "prettier": "^2.8.8",
+    "typescript": "^4.9.5",
     "vitest": "^0.25.8",
     "wild-wild-path": "^3.6.0",
     "wild-wild-utils": "^4.9.0"

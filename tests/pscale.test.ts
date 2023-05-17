@@ -1,7 +1,9 @@
-import { expect, test } from "vitest";
+import { expect, test, afterAll } from "vitest";
 import PrismaEdgeQL, { Operations, PlanetScale, makeModels, type PrismaEdgeQLParams } from "../src/index";
+import fs from 'fs/promises'
+import * as prettier from 'prettier'
 
-const config = {
+const testsConfig = {
     driver: PlanetScale,
     databaseUrl: String(),
     prismaModels: {
@@ -70,8 +72,8 @@ const emulateQueries = (ops: Operations, textExecParams?: { storage: any; result
         }))
 }
 
-const { driver: pscale } = new PrismaEdgeQL(config)
-const Models = makeModels(config.prismaModels)
+const { driver: pscale } = new PrismaEdgeQL(testsConfig)
+const Models = makeModels(testsConfig.prismaModels)
 const Post = Models?.post || {}
 
 // Model queries
@@ -92,7 +94,7 @@ test("findUnique", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: `SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email, "profileImage", (SELECT JSON_OBJECT("url", url) FROM Image WHERE Image.relatedToUserProfileUuid = User.uuid)) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1) AND title LIKE ?;`,
+            sql: `SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email, "profileImage", (SELECT JSON_OBJECT("url", url) FROM Image WHERE Image.relatedToUserProfileUuid = User.uuid)) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE \`uuid\` = UUID_TO_BIN(?, 1) AND \`title\` LIKE ?;`,
             vars: ['123', '%foo%']
         },
     ]);
@@ -114,7 +116,7 @@ test("findMany", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: `SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid))) FROM Post WHERE title LIKE ? AND User.email = ? LEFT JOIN User ON User.uuid = Post.authorUuid;`,
+            sql: `SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid))) FROM Post WHERE \`title\` LIKE ? AND User.email = ? LEFT JOIN User ON User.uuid = Post.authorUuid;`,
             vars: ['%world%', 'email@gmail.com']
         },
     ]);
@@ -143,15 +145,15 @@ test("create (last_insert_id = uuid_to_bin(uuid(),1))", async () => {
             vars: [],
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "email", email) FROM User WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "email", email) FROM User WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['234'],
         },
         {
-            sql: 'INSERT INTO Post(title, authorUuid) VALUES(?, ?);',
+            sql: 'INSERT INTO Post(`title`, `authorUuid`) VALUES(?, ?);',
             vars: ['hello world', '234'],
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: [insertId],
         }
     ]);
@@ -175,11 +177,11 @@ test("update", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: 'UPDATE Post SET title = ? WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'UPDATE Post SET `title` = ? WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['hello world', '123']
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['123']
         }
     ]);
@@ -214,11 +216,11 @@ test("upsert (update existing)", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: 'UPDATE Post SET title = ? WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'UPDATE Post SET `title` = ? WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['hello world', '123'],
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['123'],
         }
     ]);
@@ -257,7 +259,7 @@ test("upsert (create new)", async () => {
     expect(queries).toStrictEqual([
         // update
         {
-            sql: 'UPDATE Post SET title = ? WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'UPDATE Post SET `title` = ? WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['hello world', '123'],
         },
         // insert
@@ -266,12 +268,12 @@ test("upsert (create new)", async () => {
             vars: [],
         },
         {
-            sql: 'INSERT INTO Post(title) VALUES(?);',
+            sql: 'INSERT INTO Post(`title`) VALUES(?);',
             vars: ['hello world'],
         },
         // select
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: [insertId],
         }
     ]);
@@ -289,11 +291,11 @@ test("delete", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: 'SELECT JSON_OBJECT("title", title) FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("title", title) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['123']
         },
         {
-            sql: 'DELETE FROM Post WHERE uuid = UUID_TO_BIN(?, 1);',
+            sql: 'DELETE FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['123']
         },
     ]);
@@ -308,4 +310,132 @@ test("count", async () => {
             vars: []
         },
     ]);
+})
+
+afterAll(async () => {
+    const prismaModels = {
+        Post: { fields: { uuid: { id: true, default: '@default(autoincrement())' } } }
+    }
+    const prismaEdgeQL = new PrismaEdgeQL({
+        driver: PlanetScale,
+        databaseUrl: String(),
+        prismaModels,
+        logger: () => { }
+    })
+    const ReadmeModels = makeModels(prismaModels)
+
+    const readmeExamples = [
+        {
+            id: 'findUnique',
+            prismaQuery:
+                `await prisma.post.findUnique({
+                    where: { uuid: '123' },
+                    select: { uuid: true, title: true }
+                })`,
+            output: emulateQueries(prismaEdgeQL.driver.findUnique({
+                where: { uuid: '123' },
+                select: { uuid: true, title: true }
+            }, ReadmeModels.post)),
+        },
+        {
+            id: 'findMany',
+            prismaQuery:
+                `await prisma.post.findMany({
+                    select: { uuid: true, title: true }
+                })`,
+            output: emulateQueries(prismaEdgeQL.driver.findMany({
+                select: { uuid: true, title: true }
+            }, ReadmeModels.post)),
+        },
+        {
+            id: 'count',
+            prismaQuery: `await prisma.post.count()`,
+            output: emulateQueries(prismaEdgeQL.driver.count({}, ReadmeModels.post)),
+        },
+        {
+            id: 'create',
+            prismaQuery:
+                `await prisma.post.create({
+                    data: { title: 'hello world' }
+                })`,
+            output: emulateQueries(prismaEdgeQL.driver.create({
+                data: { title: 'hello world' }
+            }, ReadmeModels.post)),
+        },
+        {
+            id: 'update',
+            prismaQuery:
+                `await prisma.post.update({
+                    where: { uuid: '123' },
+                    data: { title: 'hello world' },
+                    select: { title: true }
+                })`,
+            output: emulateQueries(prismaEdgeQL.driver.update({
+                where: { uuid: '123' },
+                data: { title: 'hello world' },
+                select: { title: true }
+            }, ReadmeModels.post)),
+        },
+        {
+            id: 'upsert',
+            prismaQuery:
+                `await prisma.post.upsert({
+                    where: { uuid: '123' },
+                    create: { title: 'hello world' },
+                    update: { title: 'hello world' },
+                    select: { title: true }
+                })`,
+            output: emulateQueries(prismaEdgeQL.driver.upsert({
+                where: { uuid: '123' },
+                create: { title: 'hello world' },
+                update: { title: 'hello world' },
+                select: { title: true }
+            }, ReadmeModels.post)),
+        },
+        {
+            id: 'delete',
+            prismaQuery:
+                `await prisma.post.delete({
+                    where: { uuid: '123' }
+                })`,
+            output: emulateQueries(prismaEdgeQL.driver.delete({
+                where: { uuid: '123' }
+            }, ReadmeModels.post)),
+        },
+    ]
+
+    const readme: string[] = []
+
+    for (let index = 0; index < readmeExamples.length; index++) {
+        const example = readmeExamples[index]
+        const ts = prettier.format(example.prismaQuery, {
+            semi: false,
+            parser: 'typescript',
+            tabWidth: 2,
+            trailingComma: 'none',
+            singleQuote: true,
+            printWidth: 60,
+        })
+        const sql = example.output.map(o => o.sql.replace(/;/gm, ';\n').replace(/(FROM|SET|WHERE)/gm, '\n$1')).join('\n')
+        const vars = [...example.output.map(o => o.vars)].flat()
+        let md = `### \`${example.id}\`\n\n`
+            + `Usage with Prisma-EdgeQL\n\n`
+            + `\`\`\`ts\n`
+            + `${ts}`
+            + `\`\`\`\n\n`
+            + `Generated SQL\n\n`
+            + `\`\`\`sql\n`
+            + `${sql}`
+            + `\`\`\``
+        if (vars.length > 0) {
+            md += `\n\nInjected vars\n\n`
+                + `\`\`\`json\n`
+                + `${JSON.stringify(vars)}\n`
+                + `\`\`\``
+        }
+        md += '\n'
+        readme.push(md)
+    }
+
+    await fs.writeFile('tests/examples.md', readme.join('\n'))
 })
