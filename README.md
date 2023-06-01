@@ -165,13 +165,13 @@ const post = await prisma.post.findUnique({ where, select })
   <tr>
     <td>Filter conditions and operators</td>
     <td>
-        <code>equals</code>, <code>contains</code>, <code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code>
+        <code>equals</code>, <code>contains</code>, <code>lt</code>, <code>lte</code>, <code>gt</code>, <code>gte</code>, <code>in</code>, <code>notIn</code>
     </td>
     <td>
         x
     </td>
     <td>
-        <code>not</code>, <code>in</code>, <code>notIn</code>,  <code>search</code>, <code>mode</code>, <code>startsWith</code>, <code>endsWith</code>, <code>AND</code>, <code>OR</code>, <code>NOT</code>
+        <code>not</code>,  <code>search</code>, <code>mode</code>, <code>startsWith</code>, <code>endsWith</code>, <code>AND</code>, <code>OR</code>, <code>NOT</code>
     </td>
   </tr>
   <tr>
