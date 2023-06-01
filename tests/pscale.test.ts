@@ -1,5 +1,6 @@
 import { expect, test, afterAll } from "vitest";
-import PrismaEdgeQL, { Operations, PlanetScale, makeModels, type PrismaEdgeQLParams } from "../src/index";
+import PrismaEdgeQL, { PlanetScale, makeModels, type PrismaEdgeQLParams } from "../src/index";
+import type { Operations } from "../src/types";
 import fs from 'fs/promises'
 import * as prettier from 'prettier'
 
@@ -10,6 +11,7 @@ const testsConfig = {
         User: {
             fields: {
                 uuid: {
+                    type: '@db.Binary(16)',
                     default: 'dbgenerated("(uuid_to_bin(uuid(),1))")',
                     id: true,
                 }
@@ -25,6 +27,7 @@ const testsConfig = {
         Post: {
             fields: {
                 uuid: {
+                    type: '@db.Binary(16)',
                     default: 'dbgenerated("(uuid_to_bin(uuid(),1))")',
                     id: true,
                 }
@@ -94,7 +97,7 @@ test("findUnique", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: `SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email, "profileImage", (SELECT JSON_OBJECT("url", url) FROM Image WHERE Image.relatedToUserProfileUuid = User.uuid)) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE \`uuid\` = UUID_TO_BIN(?, 1) AND \`title\` LIKE ?;`,
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", `title`, "author", (SELECT JSON_OBJECT("email", `email`, "profileImage", (SELECT JSON_OBJECT("url", `url`) FROM Image WHERE Image.relatedToUserProfileUuid = User.uuid)) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", `url`)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1) AND `title` LIKE ?;',
             vars: ['123', '%foo%']
         },
     ]);
@@ -116,7 +119,7 @@ test("findMany", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: `SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid))) FROM Post WHERE \`title\` LIKE ? AND User.email = ? LEFT JOIN User ON User.uuid = Post.authorUuid;`,
+            sql: 'SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", `title`, "author", (SELECT JSON_OBJECT("email", `email`) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", `url`)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid))) FROM Post WHERE `title` LIKE ? AND User.email = ? LEFT JOIN User ON User.uuid = Post.authorUuid;',
             vars: ['%world%', 'email@gmail.com']
         },
     ]);
@@ -145,7 +148,7 @@ test("create (last_insert_id = uuid_to_bin(uuid(),1))", async () => {
             vars: [],
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "email", email) FROM User WHERE `uuid` = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "email", `email`) FROM User WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['234'],
         },
         {
@@ -153,7 +156,7 @@ test("create (last_insert_id = uuid_to_bin(uuid(),1))", async () => {
             vars: ['hello world', '234'],
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", `title`, "author", (SELECT JSON_OBJECT("email", `email`) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", `url`)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: [insertId],
         }
     ]);
@@ -181,7 +184,7 @@ test("update", async () => {
             vars: ['hello world', '123']
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", `title`, "author", (SELECT JSON_OBJECT("email", `email`) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", `url`)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['123']
         }
     ]);
@@ -220,7 +223,7 @@ test("upsert (update existing)", async () => {
             vars: ['hello world', '123'],
         },
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", `title`, "author", (SELECT JSON_OBJECT("email", `email`) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", `url`)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['123'],
         }
     ]);
@@ -273,7 +276,7 @@ test("upsert (create new)", async () => {
         },
         // select
         {
-            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", title, "author", (SELECT JSON_OBJECT("email", email) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", url)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("uuid", BIN_TO_UUID(uuid, 1), "title", `title`, "author", (SELECT JSON_OBJECT("email", `email`) FROM User WHERE User.uuid = Post.authorUuid), "images", (SELECT JSON_ARRAYAGG(JSON_OBJECT("url", `url`)) FROM Image WHERE Image.relatedToPostUuid = Post.uuid)) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: [insertId],
         }
     ]);
@@ -291,7 +294,7 @@ test("delete", async () => {
 
     expect(queries).toStrictEqual([
         {
-            sql: 'SELECT JSON_OBJECT("title", title) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
+            sql: 'SELECT JSON_OBJECT("title", `title`) FROM Post WHERE `uuid` = UUID_TO_BIN(?, 1);',
             vars: ['123']
         },
         {

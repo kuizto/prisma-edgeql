@@ -1,4 +1,4 @@
-import type { AdapterParams, Model } from './index'
+import type { AdapterParams, Client, Model } from './types'
 
 export default class Prisma {
     private config: AdapterParams
@@ -50,7 +50,7 @@ export default class Prisma {
                 if (__execParams?.before) {
                     const setVar = (
                         key: string,
-                        value: "string" | "number" | "bigint" | "boolean" | "undefined" | null
+                        value: 'string' | 'number' | 'bigint' | 'boolean' | 'undefined' | null,
                     ) => vars = vars.map(v => v === key ? value : v)
 
                     __execParams.before({ storage, setVar })
@@ -59,18 +59,17 @@ export default class Prisma {
                 const silentErrors = typeof __execParams?.silentErrors !== 'undefined' && __execParams.silentErrors({ storage }) === true
                 const response = await this.config.driver.execute(sql, vars, { silentErrors })
 
-                const setResult =
-                    (driverQuery === 'delete' && queryIndex === 0) ||
-                    (driverQuery !== 'delete' && queryIndex === ops.length - 1)
+                const setResult
+                    = (driverQuery === 'delete' && queryIndex === 0)
+                    || (driverQuery !== 'delete' && queryIndex === ops.length - 1)
 
                 if (setResult || __execParams?.after) {
                     queryResult = this.config.driver.formatOutput<Return>(
-                        response, { type: returnType, model }
+                        response, { type: returnType, model },
                     )
 
-                    if (__execParams?.after) {
+                    if (__execParams?.after)
                         __execParams.after({ storage, result: queryResult })
-                    }
                 }
 
                 querySelectedResult = queryResult
@@ -79,71 +78,4 @@ export default class Prisma {
 
         return querySelectedResult
     }
-}
-
-export type Client<Model extends string> = Record<Lowercase<Model>, {
-    findUnique: <Payload = any | null, Args = FindUniqueQuery>(args: FindUniqueQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
-        => Promise<Payload>
-    findMany: <Payload = any, Args = FindManyQuery>(args?: FindManyQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
-        => Promise<Payload[]>
-    count: <Payload = number, Args = CountQuery>(args?: CountQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
-        => Promise<Payload>
-    create: <Payload = any | null, Args = CreateQuery>(args: CreateQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
-        => Promise<Payload>
-    update: <Payload = any | null, Args = UpdateQuery>(args: UpdateQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
-        => Promise<Payload>
-    upsert: <Payload = any | null, Args = UpsertQuery>(args: UpsertQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
-        => Promise<Payload>
-    delete: <Payload = any | null, Args = DeleteQuery>(args: DeleteQuery | Omit<Args, 'include' | 'cursor' | 'distinct'>)
-        => Promise<Payload>
-}>
-
-export type PrismaCreate = object | null
-export type PrismaUpdate = object | null
-export type PrismaWhere = object | null
-export type PrismaSelect = object | null
-export type PrismaData = object | null
-
-export type FindUniqueQuery = {
-    where: PrismaWhere
-    select?: PrismaSelect
-    skip?: number
-    take?: number
-}
-
-export type FindManyQuery = {
-    where?: PrismaWhere
-    select?: PrismaSelect
-    skip?: number
-    take?: number
-} | undefined
-
-export type CountQuery = {
-    where?: PrismaWhere
-    select?: PrismaSelect
-    skip?: number
-    take?: number
-} | undefined
-
-export type CreateQuery = {
-    data: PrismaData
-    select?: PrismaSelect
-}
-
-export type UpdateQuery = {
-    data: PrismaData
-    where: PrismaWhere
-    select?: PrismaSelect
-}
-
-export type UpsertQuery = {
-    where: PrismaWhere
-    update: PrismaUpdate
-    create: PrismaCreate
-    select?: PrismaSelect
-}
-
-export type DeleteQuery = {
-    where: PrismaWhere
-    select?: PrismaSelect
 }

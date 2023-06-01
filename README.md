@@ -344,7 +344,7 @@ await prisma.post.findUnique({
 Generated SQL
 
 ```sql
-SELECT JSON_OBJECT("uuid", uuid, "title", title) 
+SELECT JSON_OBJECT("uuid", `uuid`, "title", `title`) 
 FROM Post 
 WHERE `uuid` = ?;
 ```
@@ -368,7 +368,7 @@ await prisma.post.findMany({
 Generated SQL
 
 ```sql
-SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", uuid, "title", title)) 
+SELECT JSON_ARRAYAGG(JSON_OBJECT("uuid", `uuid`, "title", `title`)) 
 FROM Post;
 ```
 
@@ -434,7 +434,7 @@ UPDATE Post
 SET `title` = ? 
 WHERE `uuid` = ?;
 
-SELECT JSON_OBJECT("title", title) 
+SELECT JSON_OBJECT("title", `title`) 
 FROM Post 
 WHERE `uuid` = ?;
 ```
@@ -469,7 +469,7 @@ SELECT JSON_OBJECT("uuid", LAST_INSERT_ID());
 
 INSERT INTO Post(`title`) VALUES(?);
 
-SELECT JSON_OBJECT("title", title) 
+SELECT JSON_OBJECT("title", `title`) 
 FROM Post 
 WHERE `uuid` = ?;
 ```

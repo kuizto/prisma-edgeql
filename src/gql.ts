@@ -12,7 +12,7 @@ export default class GraphQL {
         this.where = parse('where', args)
 
         const queryObj = Object.values(
-            Object.values((gqlToJson(query, { variables: this?.where || {} }) as object))?.[0]
+            Object.values((gqlToJson(query, { variables: this?.where || {} }) as object))?.[0],
         )?.[0] || {}
 
         this.select = parse('select', queryObj)
@@ -26,7 +26,7 @@ function parseSelect(queryObj?: any): any | null {
     const select = {}
 
     for (const path in dotObj) {
-        if (!path.startsWith('__args'))
+        if (!path.startsWith('__args')) {
             set(
                 select,
                 path
@@ -34,8 +34,9 @@ function parseSelect(queryObj?: any): any | null {
                     .replace(/(node)+\./g, '')
                     .replace(/\./g, '.select.'),
                 true,
-                { mutate: true }
+                { mutate: true },
             )
+        }
     }
 
     return Object.keys(select).length > 0 ? select : null
@@ -45,5 +46,5 @@ export function parse(key: 'select' | 'data' | 'where', queryArgs?: any): any | 
     if (key === 'select')
         return parseSelect(queryArgs)
     else
-        return queryArgs?.[key] && Object.keys(queryArgs[key]).length > 0 ? queryArgs[key] : null
+        return (queryArgs?.[key] && Object.keys(queryArgs[key]).length > 0) ? queryArgs[key] : null
 }

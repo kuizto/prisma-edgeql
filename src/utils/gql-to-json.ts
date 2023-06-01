@@ -202,10 +202,7 @@ export default function useParseGraphQLToJson(
     options: {
         variables: variablesObject
         operationName?: string
-    } = {
-            variables: {},
-            operationName: String(),
-        },
+    } = { variables: {}, operationName: String() },
 ) {
     const jsonObject: any = {}
 
